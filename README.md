@@ -1,1 +1,1 @@
-# cloudformation-tutorial
+# CloudFormation tutorial
