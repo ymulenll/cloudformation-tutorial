@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Extend application to include an HTTP API that triggers the Lambda function.
+
+Transform: "AWS::Serverless-2016-10-31"
+
+Resources:
+  ExampleLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      InlineCode: |
+        exports.handler = async (event) => {
+          return { message: "Hello from Lambda!" };
+        };
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Events:
+        ExampleApi:
+          Type: HttpApi
+          Properties:
+            Path: /hello
+            Method: get
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ExampleLambda}
+      RetentionInDays: 7
+
+Outputs:
+  EndpointURL:
+    Description: URL of the HTTP API endpoint
+    Value: !Sub https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/hello

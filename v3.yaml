@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: An example of an HTTP API with a Lambda integration.
+
+Resources:
+  # Lambda function
+  ExampleLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            return { message: "Hello from Lambda!" };
+          };
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: nodejs20.x
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ExampleLambda}
+      RetentionInDays: 7
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  # HTTP API
+  ExampleHttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: ExampleHttpApi
+      ProtocolType: HTTP
+
+  ExampleHttpApiExampleLambdaIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ExampleHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ExampleLambda.Arn
+      PayloadFormatVersion: "2.0"
+
+  ExampleHttpApiHelloRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ExampleHttpApi
+      RouteKey: GET /hello
+      Target: !Sub integrations/${ExampleHttpApiExampleLambdaIntegration}
+
+  ExampleHttpApiDefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref ExampleHttpApi
+      StageName: $default
+      AutoDeploy: true
+
+  ExampleLambdaExampleApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ExampleLambda
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ExampleHttpApi}/*/GET/hello
+
+  # S3 bucket
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    # Properties:
+    #   BucketName: Testing
+
+Outputs:
+  EndpointURL:
+    Description: URL of the HTTP API endpoint
+    Value: !Sub https://${ExampleHttpApi}.execute-api.${AWS::Region}.amazonaws.com/hello
+
+  S3BucketName:
+    Description: Name of the S3 bucket
+    Value: !Ref S3Bucket
